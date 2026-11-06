@@ -194,8 +194,9 @@ jobs:
           if gh release view "$TAG_NAME" > /dev/null 2>&1; then
             is_draft=$(gh release view "$TAG_NAME" --json isDraft --jq '.isDraft')
             if [ "$is_draft" != true ]; then
-              echo "This version is already published. Bump Cargo.toml and publish a new tag."
-              exit 1
+              # A release created from the GitHub web UI also creates its tag.
+              # Attach the packages to it instead of failing.
+              echo "Release already exists; uploading packages to it."
             fi
           else
             gh release create "$TAG_NAME" --verify-tag --draft \
