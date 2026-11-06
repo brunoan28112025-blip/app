@@ -6156,3 +6156,33 @@ fn move_ctrl_copies_from_the_clicked_base_point() {
     let max_x = model.vertices.values().map(|v| v.position.x).fold(f64::MIN, f64::max);
     assert!((max_x - 7.).abs() < 1e-5, "copy corner lands on the destination: {max_x}");
 }
+
+#[test]
+fn push_pull_drag_pulls_like_sketchup_and_ctrl_held_drag_adds_a_new_face() {
+    for (modifiers, faces) in [(egui::Modifiers::NONE, 6), (egui::Modifiers::CTRL, 10)] {
+        let mut h = Harness::new();
+        h.ctx.set_os(egui::os::OperatingSystem::Windows);
+        modeling_box(&mut h);
+        h.app.doc.snap_to_geometry = false;
+        h.app.doc.snap_to_axes = false;
+        h.app.snap_to_grid = false;
+        let before = h.app.doc.model.clone();
+        h.key(Key::P);
+        let p = h.at(DVec3::new(2., 2., 2.));
+        let q = h.at(DVec3::new(2., 2., 3.));
+        h.frame(vec![], modifiers);
+        h.pointer_with_modifiers(p, egui::PointerButton::Primary, true, modifiers);
+        h.frame(vec![egui::Event::PointerMoved(q)], modifiers);
+        assert!(h.app.modeling.is_some(), "dragging from a face starts Push/Pull");
+        h.pointer_with_modifiers(q, egui::PointerButton::Primary, false, modifiers);
+        h.frame(vec![], egui::Modifiers::NONE);
+        assert!(h.app.modeling.is_none(), "releasing confirms the drag");
+        let model = &h.app.doc.model;
+        model.validate().unwrap();
+        assert_eq!(model.faces.len(), faces);
+        let top = model.vertices.values().map(|v| v.position.z).fold(f64::MIN, f64::max);
+        assert!(top > 2.5, "pulled upward: {top} ({modifiers:?})");
+        h.app.undo(&h.ctx, false);
+        assert_eq!(h.app.doc.model, before);
+    }
+}

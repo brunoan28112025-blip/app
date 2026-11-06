@@ -88,6 +88,48 @@ impl KetchupApp {
         ctx.request_repaint();
     }
 
+    /// Whether the Copy (Move) or new-face (Push/Pull) modifier is held right now.
+    pub(super) fn copy_modifier_held(ctx: &egui::Context) -> bool {
+        let modifiers = ctx.input(|i| i.modifiers);
+        if ctx.os() == egui::os::OperatingSystem::Mac {
+            modifiers.alt && !modifiers.ctrl && !modifiers.mac_cmd
+        } else {
+            modifiers.ctrl && !modifiers.alt
+        }
+    }
+
+    /// The tap toggle normally tracks the modifier. If a press never reached the
+    /// toggle (the key went down while another control had focus, or the event
+    /// was lost), holding the modifier still flips the mode until it is released.
+    pub(super) fn copy_mode_active(&self, ctx: &egui::Context) -> bool {
+        if Self::copy_modifier_held(ctx) && !self.move_modifier_down {
+            !self.move_copy
+        } else {
+            self.move_copy
+        }
+    }
+
+    /// Keep an active Move or Push/Pull preview in step with the held modifier.
+    pub(super) fn sync_held_copy_modifier(&mut self, ctx: &egui::Context) {
+        if !matches!(self.tool, Tool::Move | Tool::PushPull) || self.paste_preview.is_some() {
+            return;
+        }
+        let active = self.copy_mode_active(ctx);
+        let Some(edit) = &mut self.modeling else {
+            return;
+        };
+        if edit.copy == active {
+            return;
+        }
+        edit.copy = active;
+        edit.preview = None;
+        edit.preview_delta = None;
+        if let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) {
+            self.update_modeling(pos);
+        }
+        ctx.request_repaint();
+    }
+
     pub(super) fn move_delta(edit: &Modeling, value: f64) -> Result<DVec3, &'static str> {
         if !value.is_finite() {
             return Err("Enter a finite displacement");

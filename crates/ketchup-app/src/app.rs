@@ -1921,6 +1921,7 @@ impl KetchupApp {
     }
 
     fn keyboard(&mut self, ctx: &egui::Context) {
+        self.sync_held_copy_modifier(ctx);
         #[cfg(not(target_arch = "wasm32"))]
         if self.updates.open {
             return;
@@ -2046,6 +2047,21 @@ impl KetchupApp {
             || self.viewports.renaming.is_some()
             || self.text_editor.is_some()
         {
+            let only_widget_focus = !self.help
+                && self.object_creation.is_none()
+                && self.object_rename.is_none()
+                && self.viewports.renaming.is_none()
+                && self.text_editor.is_none();
+            if only_widget_focus && matches!(self.tool, Tool::Move | Tool::PushPull) {
+                // A focused inspector or distance field must not swallow the
+                // Copy / new-face toggle while a Move or Push/Pull is running.
+                for event in ctx.input(|i| i.events.clone()) {
+                    if let egui::Event::ModifiersChanged(modifiers) = event {
+                        self.move_modifier(ctx, modifiers, false);
+                    }
+                }
+                return;
+            }
             let modifiers = ctx.input(|i| i.modifiers);
             self.move_modifier_down = if ctx.os() == egui::os::OperatingSystem::Mac {
                 modifiers.alt
@@ -2704,7 +2720,7 @@ impl KetchupApp {
                         if self.last_move_copy.is_some() {
                             "Copy placed · Type /3 to divide the span or 3x to repeat · Enter to apply"
                         } else {
-                            match (ctx.os() == egui::os::OperatingSystem::Mac, self.move_copy) {
+                            match (ctx.os() == egui::os::OperatingSystem::Mac, self.copy_mode_active(&ctx)) {
                                 (true, true) => "Copy · Option toggles Move · Click to place · Type distance + Enter",
                                 (true, false) => "Move · Option toggles Copy · Click base point and destination",
                                 (false, true) => "Copy · Ctrl toggles Move · Click to place · Type distance + Enter",
@@ -2712,7 +2728,7 @@ impl KetchupApp {
                             }
                         }
                     } else if self.tool == Tool::PushPull {
-                        match (ctx.os() == egui::os::OperatingSystem::Mac, self.move_copy) {
+                        match (ctx.os() == egui::os::OperatingSystem::Mac, self.copy_mode_active(&ctx)) {
                             (true, true) => "Push/Pull new face · Option toggles stretch · Click a face, then click or type distance + Enter",
                             (true, false) => "Push/Pull · Option toggles new face · Click a face, then click or type distance + Enter",
                             (false, true) => "Push/Pull new face · Ctrl toggles stretch · Click a face, then click or type distance + Enter",
@@ -4078,6 +4094,16 @@ impl KetchupApp {
                                     self.sample_freehand(pos);
                                 }
                             }
+                            // Like SketchUp, pressing on a face and dragging also pulls it;
+                            // releasing confirms. Click, move, click keeps working.
+                            GestureKind::Modeling
+                                if self.tool == Tool::PushPull
+                                    && self.modeling.is_none()
+                                    && self.viewport.contains(gesture.start)
+                                    && gesture.start.distance(pos) >= 5. =>
+                            {
+                                self.begin_modeling(gesture.start, ctx);
+                            }
                             _ => {}
                         }
                         gesture.last = pos;
@@ -4250,6 +4276,15 @@ impl KetchupApp {
                                 } else {
                                     self.begin_modeling(pos, ctx);
                                 }
+                            }
+                            GestureKind::Modeling
+                                if self.tool == Tool::PushPull
+                                    && self.modeling.is_some()
+                                    && self.viewport.contains(pos)
+                                    && gesture.start.distance(pos) >= 5. =>
+                            {
+                                self.update_modeling(pos);
+                                self.commit_modeling(ctx);
                             }
                             _ => {}
                         }
