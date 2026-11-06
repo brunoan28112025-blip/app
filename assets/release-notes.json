@@ -1,5 +1,19 @@
 [
   {
+    "version": "0.6.3",
+    "date": "2026-11-06",
+    "title": "SketchUp-style new face Push/Pull",
+    "sections": [
+      {
+        "title": "Modeling",
+        "changes": [
+          "Tap Ctrl (Option on macOS) during Push/Pull to toggle new-face mode: the clicked face stays in place and a new section grows from it instead of stretching the adjoining walls.",
+          "Pulling outward in new-face mode keeps the result a single closed solid, with the original boundary kept as edges on the side walls."
+        ]
+      }
+    ]
+  },
+  {
     "version": "0.6.2",
     "date": "2026-11-06",
     "title": "Precise rotation with flexible pivots",
@@ -224,7 +238,7 @@
       {
         "title": "Editor",
         "changes": [
-          "Browse release history offline from Help \u2192 Release notes, with new notes opening automatically once per release.",
+          "Browse release history offline from Help → Release notes, with new notes opening automatically once per release.",
           "Use the Edit menu for shared selection commands, and expand or collapse an object's descendants from the Outliner context menu.",
           "Identify Outliner entities with clearer icons and labels, and read keyboard shortcuts in a cleaner layout."
         ]
