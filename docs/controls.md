@@ -26,7 +26,7 @@
 | Circle | C; click the center, then set the radius by pointer or type a length + Enter (48 segments) |
 | Polygon | G; click the center, then a vertex or type a radius + Enter; choose 3–64 sides in the drawing menu |
 | Freehand | D; drag to draw connected edges; release to finish, or type a total stroke length + Enter |
-| Push/Pull | P; click a face, move along its normal, click to confirm or type a length + Enter |
+| Push/Pull | P; click a face, move along its normal, click to confirm or type a length + Enter. Tap Ctrl (Option on macOS) to toggle new-face mode: the clicked face stays put and a new section grows from it instead of stretching the walls |
 | Union flyout | Union button in the left toolbar: Flip, Combine, Union, Intersect, Trim, Split |
 | Flip | Choose Flip, then click a colored mirror plane or use Right / Left / Up for X / Y / Z |
 | Scale | S; select geometry, click a reference point, move or type a scale factor + Enter; axis locks constrain scaling |

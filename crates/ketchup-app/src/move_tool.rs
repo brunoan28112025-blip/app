@@ -69,7 +69,7 @@ impl KetchupApp {
         if !pressed
             || shortcuts
             || !ctx.input(|i| i.focused)
-            || self.tool != Tool::Move
+            || !matches!(self.tool, Tool::Move | Tool::PushPull)
             || self.paste_preview.is_some()
             || (mac && (modifiers.ctrl || modifiers.mac_cmd))
         {

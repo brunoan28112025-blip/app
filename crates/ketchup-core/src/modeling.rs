@@ -406,8 +406,26 @@ impl Model {
     /// Extrude a face by a world-space displacement, including oblique pulls
     /// along a locked axis. A displacement within the face cannot form a solid.
     pub fn push_pull_along(&mut self, face_id: u64, delta: DVec3) -> Result<u64, &'static str> {
+        self.push_pull_along_with(face_id, delta, false)
+    }
+
+    /// Like SketchUp's Ctrl/Option Push/Pull: keep the clicked face where it is and
+    /// grow a new section from it instead of stretching the adjoining walls. The
+    /// original boundary stays as edges on the side walls. Pulling outward from a
+    /// solid removes the now-interior face so the result stays one closed solid.
+    pub fn push_pull_new_face(&mut self, face_id: u64, delta: DVec3) -> Result<u64, &'static str> {
+        self.push_pull_along_with(face_id, delta, true)
+    }
+
+    fn push_pull_along_with(
+        &mut self,
+        face_id: u64,
+        delta: DVec3,
+        new_face: bool,
+    ) -> Result<u64, &'static str> {
         if self.edit_context.is_some() {
-            return self.edit_in_context(|model| model.push_pull_along(face_id, delta));
+            return self
+                .edit_in_context(|model| model.push_pull_along_with(face_id, delta, new_face));
         }
         self.editable_surface(face_id)?;
         let distance = delta.length();
@@ -441,19 +459,43 @@ impl Model {
                     })
                 })
         };
-        if boundary.iter().all(|&(a, b)| {
-            self.faces.values().any(|other| {
+        let walls: Vec<&Face> = self
+            .faces
+            .values()
+            .filter(|other| {
                 other.id != face_id
                     && self.parent(other.id).is_none()
                     && faces::plane(self, &other.vertices)
                         .is_some_and(|p| p.normal.cross(normal).length() > EPS)
-                    && shares_edge(other, a, b)
+                    && boundary.iter().any(|&(a, b)| shares_edge(other, a, b))
             })
-        }) {
+            .collect();
+        let on_solid = boundary
+            .iter()
+            .all(|&(a, b)| walls.iter().any(|other| shares_edge(other, a, b)));
+        if on_solid && !new_face {
             self.move_selection(&BTreeSet::from([face_id]), delta)?;
             return Ok(face_id);
         }
+        // The adjoining walls lie on the solid's side of the face. Pulling away
+        // from them leaves the clicked face inside the enlarged solid.
+        let origin = self.vertices[&face.vertices[0]].position;
+        let face_vertices: BTreeSet<u64> = std::iter::once(&face.vertices)
+            .chain(face.holes.iter())
+            .flatten()
+            .copied()
+            .collect();
+        let solid_side = walls
+            .iter()
+            .flat_map(|wall| wall.vertices.iter())
+            .filter(|id| !face_vertices.contains(id))
+            .map(|id| (self.vertices[id].position - origin).dot(normal))
+            .find(|side| side.abs() > EPS);
+        let interior = on_solid && solid_side.is_some_and(|side| side * delta.dot(normal) < 0.);
         let mut next = self.clone();
+        if interior {
+            next.erase(&BTreeSet::from([face_id]));
+        }
         let joined_surface = self.faces.values().any(|other| {
             other.id != face_id
                 && self.parent(other.id).is_none()

@@ -616,3 +616,52 @@ fn rotation_uses_an_offset_pivot_preserves_lengths_and_is_atomic_on_failure() {
     }
     model.validate().unwrap();
 }
+
+#[test]
+fn new_face_push_pull_adds_a_section_instead_of_stretching_the_solid() {
+    let mut model = Model::default();
+    let face = rectangle(&mut model, DVec3::ZERO, DVec3::new(4., 3., 0.));
+    let cap = model.push_pull_along(face, DVec3::Z * 2.).unwrap();
+    let solid = model.clone();
+    let old_cap_vertices = model.faces[&cap].vertices.clone();
+    let top = model.push_pull_new_face(cap, DVec3::Z * 1.).unwrap();
+    assert_ne!(top, cap, "a new cap must be created");
+    // The original cap boundary stays in place at z = 2.
+    for id in &old_cap_vertices {
+        assert_eq!(model.vertices[id].position, solid.vertices[id].position);
+    }
+    assert!(model.faces[&top].vertices.iter()
+        .all(|id| (model.vertices[id].position.z - 3.).abs() < 1e-7));
+    // Pulling outward leaves no interior face: 4 lower walls + 4 upper walls,
+    // the bottom and the new top. The old boundary remains as 4 edges.
+    assert!(!model.faces.contains_key(&cap));
+    assert_eq!((model.vertices.len(), model.edges.len(), model.faces.len()), (12, 20, 10));
+    model.validate().unwrap();
+
+    // Without the modifier the same pull still stretches the existing walls.
+    let mut stretched = solid.clone();
+    assert_eq!(stretched.push_pull_along(cap, DVec3::Z * 1.).unwrap(), cap);
+    assert_eq!(stretched.faces.len(), 6);
+}
+
+#[test]
+fn new_face_push_pull_on_a_loose_face_matches_a_normal_extrusion() {
+    let mut a = Model::default();
+    let face = rectangle(&mut a, DVec3::ZERO, DVec3::new(2., 2., 0.));
+    let mut b = a.clone();
+    a.push_pull_along(face, DVec3::Z).unwrap();
+    b.push_pull_new_face(face, DVec3::Z).unwrap();
+    assert_eq!(a, b);
+}
+
+#[test]
+fn new_face_push_pull_into_a_solid_keeps_the_starting_face() {
+    let mut model = Model::default();
+    let face = rectangle(&mut model, DVec3::ZERO, DVec3::new(4., 3., 0.));
+    let cap = model.push_pull_along(face, DVec3::Z * 2.).unwrap();
+    let inner = model.push_pull_new_face(cap, DVec3::Z * -1.).unwrap();
+    assert!(model.faces.contains_key(&cap));
+    assert!(model.faces[&inner].vertices.iter()
+        .all(|id| (model.vertices[id].position.z - 1.).abs() < 1e-7));
+    model.validate().unwrap();
+}

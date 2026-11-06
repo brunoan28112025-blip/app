@@ -1471,7 +1471,7 @@ impl KetchupApp {
             unlocked_direction: direction,
             guides: vec![],
             value: if self.tool == Tool::Scale { 1. } else { 0. },
-            copy: self.tool == Tool::Move && self.move_copy,
+            copy: matches!(self.tool, Tool::Move | Tool::PushPull) && self.move_copy,
             preview: None,
             move_snap: matches!(self.tool, Tool::Move | Tool::Rotate | Tool::Scale)
                 .then(|| {
@@ -1801,7 +1801,11 @@ impl KetchupApp {
                 let face_id = face.id;
                 let context = model.edit_context;
                 model.edit_context = model.parent(face_id);
-                model.push_pull_along(face_id, edit.direction * value)?;
+                if edit.copy {
+                    model.push_pull_new_face(face_id, edit.direction * value)?;
+                } else {
+                    model.push_pull_along(face_id, edit.direction * value)?;
+                }
                 model.edit_context = context;
             }
             Tool::Offset => {
@@ -2706,6 +2710,13 @@ impl KetchupApp {
                                 (false, true) => "Copy · Ctrl toggles Move · Click to place · Type distance + Enter",
                                 (false, false) => "Move · Ctrl toggles Copy · Click base point and destination",
                             }
+                        }
+                    } else if self.tool == Tool::PushPull {
+                        match (ctx.os() == egui::os::OperatingSystem::Mac, self.move_copy) {
+                            (true, true) => "Push/Pull new face · Option toggles stretch · Click a face, then click or type distance + Enter",
+                            (true, false) => "Push/Pull · Option toggles new face · Click a face, then click or type distance + Enter",
+                            (false, true) => "Push/Pull new face · Ctrl toggles stretch · Click a face, then click or type distance + Enter",
+                            (false, false) => "Push/Pull · Ctrl toggles new face · Click a face, then click or type distance + Enter",
                         }
                     } else if self.tool.is_solid() {
                         self.solid_status()

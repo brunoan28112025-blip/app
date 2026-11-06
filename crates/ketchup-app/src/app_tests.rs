@@ -6077,3 +6077,82 @@ fn move_hover_previews_the_anchor_used_by_first_click() {
         assert!(h.app.modeling.as_ref().unwrap().anchor.distance(snap.point) < 1e-7);
     }
 }
+
+fn modeling_box(h: &mut Harness) -> u64 {
+    let face = modeling_rectangle(h);
+    let model = &mut h.app.doc.model;
+    let cap = model.push_pull_along(face, DVec3::Z * 2.).unwrap();
+    h.app.selected.clear();
+    cap
+}
+
+#[test]
+fn push_pull_ctrl_creates_a_new_face_like_sketchup_on_windows_and_mac() {
+    for mac in [false, true] {
+        let mut h = Harness::new();
+        h.ctx.set_os(if mac {
+            egui::os::OperatingSystem::Mac
+        } else {
+            egui::os::OperatingSystem::Windows
+        });
+        let cap = modeling_box(&mut h);
+        let before = h.app.doc.model.clone();
+        h.key(Key::P);
+        let modifier = if mac { egui::Modifiers::ALT } else { egui::Modifiers::CTRL };
+        h.frame(vec![], modifier);
+        h.frame(vec![], egui::Modifiers::NONE);
+        assert!(h.app.move_copy, "Ctrl/Option toggles new-face Push/Pull");
+        h.click(h.at(DVec3::new(2., 2., 2.)));
+        assert_eq!(h.app.modeling.as_ref().unwrap().face, Some(cap));
+        assert!(h.app.modeling.as_ref().unwrap().copy);
+        modeling_number(&mut h, "1");
+        let model = &h.app.doc.model;
+        model.validate().unwrap();
+        assert_eq!(model.faces.len(), 10, "old walls kept, new section added");
+        // Original walls keep their height; nothing was stretched.
+        for (id, vertex) in &before.vertices {
+            assert_eq!(model.vertices[id].position, vertex.position);
+        }
+        let top = model.vertices.values().map(|v| v.position.z).fold(f64::MIN, f64::max);
+        assert!((top - 3.).abs() < 1e-6);
+        assert_eq!(h.app.doc.history.undo_label(), Some("Push/Pull"));
+        h.app.undo(&h.ctx, false);
+        assert_eq!(h.app.doc.model, before);
+
+        // Toggling back restores the default stretch behaviour.
+        h.frame(vec![], modifier);
+        h.frame(vec![], egui::Modifiers::NONE);
+        assert!(!h.app.move_copy);
+        h.click(h.at(DVec3::new(2., 2., 2.)));
+        modeling_number(&mut h, "1");
+        assert_eq!(h.app.doc.model.faces.len(), 6);
+    }
+}
+
+#[test]
+fn move_ctrl_copies_from_the_clicked_base_point() {
+    let mut h = Harness::new();
+    modeling_box(&mut h);
+    let group = h.app.doc.model.make_object(
+        &h.app.doc.model.selectable_entities(), false, "Box",
+    ).unwrap();
+    h.app.selected = BTreeSet::from([group]);
+    let before = h.app.doc.model.clone();
+    h.key(Key::M);
+    h.frame(vec![], egui::Modifiers::CTRL);
+    h.frame(vec![], egui::Modifiers::NONE);
+    assert!(h.app.move_copy);
+    let base = DVec3::new(4., 4., 2.);
+    h.click(h.at(base));
+    let anchor = h.app.modeling.as_ref().unwrap().anchor;
+    assert!(anchor.distance(base) < 1e-6, "base point is the clicked corner: {anchor}");
+    h.key(Key::ArrowRight);
+    let end = h.at(DVec3::new(7., 4., 2.));
+    h.frame(vec![egui::Event::PointerMoved(end)], egui::Modifiers::NONE);
+    h.click(end);
+    let model = &h.app.doc.model;
+    model.validate().unwrap();
+    assert_eq!(model.vertices.len(), before.vertices.len() * 2, "original kept, copy added");
+    let max_x = model.vertices.values().map(|v| v.position.x).fold(f64::MIN, f64::max);
+    assert!((max_x - 7.).abs() < 1e-5, "copy corner lands on the destination: {max_x}");
+}
