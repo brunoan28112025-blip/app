@@ -1,5 +1,20 @@
 [
   {
+    "version": "0.6.5",
+    "date": "2026-11-06",
+    "title": "Drag to Push/Pull and hold Ctrl for a new face",
+    "sections": [
+      {
+        "title": "Modeling",
+        "changes": [
+          "Press on a face and drag to Push/Pull it; release to confirm. Click, move, and click still works.",
+          "Hold Ctrl (Option on macOS) while pulling to grow a new section from the face, or tap it to toggle the mode.",
+          "A focused inspector or distance field no longer swallows the Ctrl/Option toggle during Move or Push/Pull."
+        ]
+      }
+    ]
+  },
+  {
     "version": "0.6.4",
     "date": "2026-11-06",
     "title": "SketchUp-style new face Push/Pull",
